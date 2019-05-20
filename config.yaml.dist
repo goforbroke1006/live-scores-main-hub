@@ -1,0 +1,3 @@
+providers:
+  my.resource-1.prov: localhost:8010/ws
+  my.resource-2.prov: localhost:8011/ws

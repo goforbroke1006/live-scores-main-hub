@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Sport events dashboard</title>
+    <style>
+        #match-data .row div {
+            display: inline-block;
+            border: 1px solid #cccccc;
+        }
+
+        #match-data .row div:nth-child(1) {
+            width: 200px;
+        }
+
+        #match-data .row div:nth-child(2) {
+            width: 50px;
+        }
+
+        #match-data .row div:nth-child(3) {
+            width: 200px;
+        }
+
+        #match-data .row div:nth-child(4) {
+            width: 160px;
+        }
+    </style>
+</head>
+<body>
+
+<div id="match-data">
+    <!-- Place actual data here -->
+</div>
+
+</body>
+
+<script>
+    'use strict';
+
+    let matchDataTable = document.getElementById("match-data");
+
+    function onMessageHandler(event) {
+        console.log("Receive data: " + event.data);
+        let objData = JSON.parse(event.data);
+
+        let matchRow = matchDataTable.querySelector(
+            '.row[data-home="' + objData.home + '"][data-away="' + objData.away + '"]');
+
+        var today = new Date();
+        var timeStr = today.toLocaleDateString("en-US");
+
+        if (matchRow) {
+            matchRow.querySelector(".scores").innerHTML = objData.scores.home + ":" + objData.scores.away;
+            matchRow.querySelector(".date").innerHTML = timeStr;
+        } else {
+            matchRow = document.createElement('div');
+            matchRow.className = "row";
+            matchRow.setAttribute("data-home", objData.home);
+            matchRow.setAttribute("data-away", objData.away);
+            matchRow.innerHTML =
+                "<div>" + objData.home + "</div>\n" +
+                "<div class=\"scores\">" + objData.scores.home + ":" + objData.scores.away + "</div>\n" +
+                "<div>" + objData.away + "</div>" +
+                "<div class=\"date\">" + timeStr + "</div>";
+            matchDataTable.appendChild(matchRow);
+        }
+    }
+
+    let serverAddr = "ws://localhost:8080/ws";
+
+    let socket = null;
+    document.addEventListener("DOMContentLoaded", function () {
+        function start() {
+            socket = new WebSocket(serverAddr);
+            socket.onopen = function () {
+                console.log("Connection is opened...");
+            };
+
+            socket.onclose = function (event) {
+                if (event.wasClean) {
+                    console.log('Connection was closed (clean)');
+                } else {
+                    console.error('Loose connection');
+                }
+                console.log('Code: ' + event.code + '; reason: ' + event.reason);
+            };
+
+            socket.onmessage = onMessageHandler;
+
+            socket.onerror = function (error) {
+                console.error("Error: " + error.message);
+            };
+        }
+
+        function check() {
+            if (!socket || socket.readyState === 3) start();
+        }
+
+        start();
+
+        setInterval(check, 5000);
+    });
+
+
+</script>
+
+</html>
