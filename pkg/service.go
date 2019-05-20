@@ -2,6 +2,7 @@ package pkg
 
 import (
 	"encoding/json"
+	"github.com/goforbroke1006/live-scores-main-hub/pkg/archive"
 	"log"
 	"net/url"
 	"sync"
@@ -24,13 +25,14 @@ type MainHubService interface {
 }
 
 type mainHubService struct {
-	logger     *log.Logger
-	pMux       sync.Mutex
-	providers  map[string]WebSocketConn
-	cMux       sync.Mutex
-	consumers  []WebSocketConn
-	sMux       sync.Mutex
-	states     map[uint64]model.Updates
+	logger    *log.Logger
+	archive   archive.ArchiveService
+	pMux      sync.Mutex
+	providers map[string]WebSocketConn
+	cMux      sync.Mutex
+	consumers []WebSocketConn
+	sMux      sync.Mutex
+	//states     map[uint64]model.Updates
 	dataStream chan model.Updates
 }
 
@@ -79,9 +81,19 @@ func (svc *mainHubService) Start() {
 		}
 	}()
 
+	states := map[uint64]model.Updates{}
 	for chunk := range svc.dataStream {
 
 		// TODO: check data newest
+
+		matchEventID := svc.archive.RecognizeLiveMatchEvent(chunk.Home, chunk.Away)
+		state, ok := states[matchEventID]
+
+		if ok && (state.Scores.Home == chunk.Scores.Home || state.Scores.Away == chunk.Scores.Away) {
+			continue
+		} else {
+			states[matchEventID] = chunk
+		}
 
 		for ci, conn := range svc.consumers {
 			consIndex := ci
@@ -105,7 +117,6 @@ func NewMainHubService(logger *log.Logger) MainHubService {
 		logger:     logger,
 		providers:  map[string]WebSocketConn{},
 		consumers:  []WebSocketConn{},
-		states:     map[uint64]model.Updates{},
 		dataStream: make(chan model.Updates, 10),
 	}
 }
