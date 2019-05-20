@@ -2,13 +2,13 @@ package pkg
 
 import (
 	"encoding/json"
-	"github.com/goforbroke1006/live-scores-main-hub/pkg/archive"
 	"log"
 	"net/url"
 	"sync"
 
 	"github.com/gorilla/websocket"
 
+	"github.com/goforbroke1006/live-scores-main-hub/pkg/archive"
 	"github.com/goforbroke1006/live-scores-main-hub/pkg/model"
 )
 
@@ -25,14 +25,13 @@ type MainHubService interface {
 }
 
 type mainHubService struct {
-	logger    *log.Logger
-	archive   archive.ArchiveService
-	pMux      sync.Mutex
-	providers map[string]WebSocketConn
-	cMux      sync.Mutex
-	consumers []WebSocketConn
-	sMux      sync.Mutex
-	//states     map[uint64]model.Updates
+	logger     *log.Logger
+	archive    archive.ArchiveService
+	pMux       sync.Mutex
+	providers  map[string]WebSocketConn
+	cMux       sync.Mutex
+	consumers  []WebSocketConn
+	sMux       sync.Mutex
 	dataStream chan model.Updates
 }
 
@@ -42,7 +41,7 @@ func (svc mainHubService) RegisterProvider(name, urlAddr string) {
 
 	provConn, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	if err != nil {
-		svc.logger.Println("dial:", err)
+		svc.logger.Println("Error:", err)
 	}
 	svc.pMux.Lock()
 	svc.providers[name] = provConn
@@ -59,8 +58,7 @@ func (svc *mainHubService) Start() {
 	svc.logger.Println("Start processing...")
 
 	go func() {
-		for name, p := range svc.providers {
-			provName := name
+		for _, p := range svc.providers {
 			provObj := p
 			go func() {
 				defer p.Close()
@@ -70,7 +68,7 @@ func (svc *mainHubService) Start() {
 						svc.logger.Println("read:", err)
 						break
 					}
-					svc.logger.Printf("recv [%s] : %s\n", provName, message)
+					//svc.logger.Printf("recv [%s] : %s\n", provName, message)
 
 					var upp model.Updates
 					_ = json.Unmarshal(message, &upp)
@@ -83,16 +81,18 @@ func (svc *mainHubService) Start() {
 
 	states := map[uint64]model.Updates{}
 	for chunk := range svc.dataStream {
-
-		// TODO: check data newest
-
 		matchEventID := svc.archive.RecognizeLiveMatchEvent(chunk.Home, chunk.Away)
 		state, ok := states[matchEventID]
 
-		if ok && (state.Scores.Home == chunk.Scores.Home || state.Scores.Away == chunk.Scores.Away) {
+		if ok && (state.Scores.Home == chunk.Scores.Home && state.Scores.Away == chunk.Scores.Away) {
 			continue
 		} else {
 			states[matchEventID] = chunk
+			svc.logger.Printf("[%d \"%s - %s\"] - %d : %d",
+				matchEventID,
+				chunk.Home, chunk.Away,
+				chunk.Scores.Home, chunk.Scores.Away,
+			)
 		}
 
 		for ci, conn := range svc.consumers {
